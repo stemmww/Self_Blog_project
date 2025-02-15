@@ -36,3 +36,5 @@ func TestComparePassword(t *testing.T) {
 	err = bcrypt.CompareHashAndPassword(hashed, []byte("wrongpassword"))
 	assert.NotNil(t, err, "Incorrect password should not match hash")
 }
+
+// Hello bro
