@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1 class="header-text">Self Blog.kz</h1>
+    </header>
+    <main>
+        <h2>Verify Email</h2>
+        <form id="verifyForm">
+            <input type="email" id="verifyEmail" placeholder="Email" required>
+            <input type="text" id="verificationCode" placeholder="Verification Code" required>
+            <button type="submit">Verify</button>
+        </form>
+    </main>
+
+    <script>
+        document.getElementById("verifyForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            const email = document.getElementById("verifyEmail").value;
+            const code = document.getElementById("verificationCode").value;
+
+            try {
+                const response = await fetch("http://localhost:8080/verify-email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, code })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert("Verification failed: " + (errorData.message || "Unknown error"));
+                    return;
+                }
+
+                alert("Email verified successfully! You can now log in.");
+                window.location.href = "/register.html";
+                
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Failed to connect to server.");
+            }
+        });
+    </script>
+</body>
+</html>

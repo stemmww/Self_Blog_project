@@ -1,0 +1,210 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Text:ital@0;1&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f9f9f9;
+    color: #333;
+    font-family: "Montserrat", serif;
+}
+/* header ----------------------------------------------------------------------------*/
+header {
+    background-color: #2d2d86;
+    color: white;
+    display: flex;
+    align-items: center;
+    text-align: center;
+    justify-content: space-between;
+}
+
+.nav-menu{
+    margin-right: 40px;
+}
+
+.header-text{
+   color: #f1f1f1;
+   margin-left: 30px;
+   font-family: "DM Serif Text", serif;
+}
+
+.header-nav{
+    text-decoration: none;
+    color: #f1f1f1;
+    margin-right: 25px;
+    font-family: "Montserrat", serif;
+    font-weight: 500;
+    font-size: 18px;
+}
+
+.header-nav:last-child{
+    text-decoration: none;
+    color: #f1f1f1;
+    margin-right: 0px;
+}
+
+.header-nav:hover{
+    cursor: pointer;
+}
+/* header end ------------------------------------------------------------------------------------*/
+
+
+main {
+    padding: 1rem 2rem;
+    max-width: 1200px;
+    margin: auto;
+}
+
+h1, h2 {
+    color: #2d2d86;
+    font-family: "Montserrat", serif;
+    font-weight: 700;
+}
+
+form {
+    background-color: white;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+}
+
+form input, form button {
+    width: 100%;
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+}
+
+form button {
+    background-color: #2d2d86;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+
+form button:hover {
+    background-color: #161660;
+}
+
+#sortingButtons{
+    display: flex;
+    justify-content: space-between;
+}
+
+
+.tap-buttons{
+    background-color: #2d2d86;
+    font-weight: 600;
+    color: #f1f1f1;
+    padding: 5px 10px;
+    border: 1px solid ;
+    border-radius: 30px;
+    cursor: pointer;
+}
+
+.tap-buttons:hover{
+    background-color: #161660;
+    transition: 0.3s;
+    transform: scale(1.05);
+}
+
+button{
+    transition: 0.3s;
+}
+
+#currentPage{
+    margin: 0px 10px;
+}
+
+#createArticleForm input{
+    margin-top: 10px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 2rem;
+}
+
+table, th, td {
+    border: 1px solid #ddd;
+}
+
+th, td {
+    padding: 1rem;
+    text-align: left;
+}
+
+th {
+    background-color: #f1f1f1;
+}
+
+.actions button {
+    padding: 0.5rem 1rem;
+    margin-right: 0.5rem;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.actions .edit-btn {
+    background-color: #ffc107;
+    color: white;
+}
+
+.actions .delete-btn {
+    background-color: #dc3545;
+    color: white;
+}
+
+.actions button:hover {
+    opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+    form input, form button {
+        width: 100%;
+    }
+
+    table {
+        font-size: 14px;
+    }
+}
+
+/* articles */
+.article {
+    background-color: #f9f9f9;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.article p {
+    margin: 0.5rem 0;
+}
+
+
+.status-pending {
+    color: orange;
+    font-weight: bold;
+}
+
+.status-completed {
+    color: green;
+    font-weight: bold;
+}
+
+.status-declined {
+    color: red;
+    font-weight: bold;
+}
+
+.transaction-item {
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+}

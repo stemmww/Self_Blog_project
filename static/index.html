@@ -1,0 +1,468 @@
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>User Management</title>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+
+    <header>
+        <h1 class="header-text">Self blog.kz</h1>
+        <nav class="nav-menu">
+            <a class="header-nav" href="articles.html">View Articles</a>
+            <a class="header-nav" href="register.html" id="auth-link">Login / Register</a>
+            <a class="header-nav" href="createArticle.html" id="create-article-link" style="display: none;">Create Article</a>
+            <a class="header-nav" href="index.html" id="admin-panel-link" style="display: none;">Admin Panel</a>
+            <a id="profile-link" class="header-nav" href="/profile.html" style="display: none;">Profile</a>
+            <button id="logout-button" style="display: none;">Logout</button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Form to create a new user -->
+        <!-- Form to create a new user -->
+    <h2>Create a new User</h2>
+    <form id="createUserForm">
+        <input type="text" id="name" placeholder="Name" required>
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="password" id="password" placeholder="Password" required> <!-- New Password Input -->
+        
+        <label for="role">Select Role:</label>
+        <select id="role" required> <!-- New Role Selection -->
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+        </select>
+
+        <button type="submit">Create User</button>
+    </form>
+
+
+
+        <!-- Form to search for a user -->
+    <h2>Search User</h2>
+    <form id="searchUserForm">
+        <input type="number" id="searchUserId" placeholder="User ID to search" required>
+        <button type="submit">Search User</button>
+    </form>
+
+    <!-- Container to display the searched user -->
+    <div id="searchResult" style="margin-top: 1rem; background-color: #fff; padding: 1rem; border-radius: 5px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); display: none;">
+        <h3>Search Result:</h3>
+        <p><strong>ID:</strong> <span id="resultId"></span></p>
+        <p><strong>Name:</strong> <span id="resultName"></span></p>
+        <p><strong>Email:</strong> <span id="resultEmail"></span></p>
+    </div>
+
+    <h2>Filter Users</h2>
+    <form id="filterUserForm">
+        <input type="text" id="filterName" placeholder="Filter by Name">
+        <input type="email" id="filterEmail" placeholder="Filter by Email">
+        <button type="submit">Apply Filter</button>
+    </form>
+
+    <h2>Sort Users</h2>
+    <div id="sortingButtons">
+        <button class="tap-buttons" onclick="sortUsers('id', 'asc')">Sort by ID (Ascending)</button>
+        <button class="tap-buttons" onclick="sortUsers('id', 'desc')">Sort by ID (Descending)</button>
+        <button class="tap-buttons" onclick="sortUsers('name', 'asc')">Sort by Name (Ascending)</button>
+        <button class="tap-buttons" onclick="sortUsers('name', 'desc')">Sort by Name (Descending)</button>
+        <button class="tap-buttons" onclick="sortUsers('email', 'asc')">Sort by Email (Ascending)</button>
+        <button class="tap-buttons" onclick="sortUsers('email', 'desc')">Sort by Email (Descending)</button>
+    </div>
+
+
+    <!-- Table to display users -->
+    <h2>Users List</h2>
+    <table id="usersTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Password</th> <!-- New Column -->
+                <th>Role</th> <!-- New Column -->
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Users will be dynamically populated here -->
+        </tbody>
+    </table>
+
+
+
+        <div id="pagination">
+            <button class="tap-buttons" onclick="changePage('prev')">Previous</button>
+            <span id="currentPage">Page 1</span>
+            <button class="tap-buttons" onclick="changePage('next')">Next</button>
+        </div>
+        
+
+    <!-- Form to update an existing user -->
+    <h2>Update User</h2>
+    <form id="updateUserForm">
+        <input type="number" id="updateId" placeholder="User ID" required>
+        <input type="text" id="updateName" placeholder="New Name" required>
+        <input type="email" id="updateEmail" placeholder="New Email" required>
+
+        <label for="updateRole">Select Role:</label>
+        <select id="updateRole">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+        </select>
+
+        <button type="submit">Update User</button>
+    </form>
+
+
+
+
+        <!-- Form to delete a user -->
+        <h2>Delete User</h2>
+        <form id="deleteUserForm">
+            <input type="number" id="deleteUserId" placeholder="User ID to delete" required>
+            <button type="submit">Delete User</button>
+        </form>
+
+        <h2>Send Email</h2>
+    <form id="sendEmailForm" enctype="multipart/form-data">
+        <input type="email" id="recipient" name="recipient" placeholder="Recipient Email" required>
+        <input type="text" id="subject" name="subject" placeholder="Subject" required>
+        <textarea id="body" name="body" placeholder="Message Body" required></textarea>
+        <input type="file" id="attachments" name="attachments" multiple> <!-- Allow multiple files -->
+        <button type="submit">Send Email</button>
+    </form>
+    </main>
+
+
+    <script src="nav.js"></script> <!-- Load dynamic navigation script -->
+
+    <script>
+        const apiUrl = 'http://localhost:8080';
+
+        let currentPage = 1; // Track the current page
+    const itemsPerPage = 10; // Number of users per page
+
+    function logout() {
+        localStorage.removeItem("token"); // Remove stored authentication token
+        window.location.href = "register.html"; // Redirect to login page
+    }
+
+    // Fetch users with pagination, filters, and sorting
+    function fetchUsers(filters = {}, sortBy = "", order = "") {
+        let url = `${apiUrl}/users`;
+
+        // Append filters as query parameters
+        const params = new URLSearchParams(filters);
+
+        // Append sorting parameters
+        if (sortBy) {
+            params.append("sort_by", sortBy);
+        }
+        if (order) {
+            params.append("order", order);
+        }
+
+        // Append pagination parameters
+        params.append("page", currentPage);
+        params.append("limit", itemsPerPage);
+
+        if (params.toString()) {
+            url += `?${params.toString()}`;
+        }
+
+        fetch(url)
+            .then(response => response.json())
+            .then(users => {
+                const tableBody = document.querySelector('#usersTable tbody');
+                tableBody.innerHTML = '';
+                users.forEach(user => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${user.id}</td>
+                        <td>${user.name}</td>
+                        <td>${user.email}</td>
+                        <td>********</td>
+                        <td>${user.role}</td>
+                        <td class="actions">
+                            <button class="edit-btn" onclick="editUser(${user.id}, '${user.name}', '${user.email}', '${user.role}')">Edit</button>
+                            <button class="delete-btn" onclick="deleteUser(${user.id})">Delete</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+
+                // Update the current page display
+                document.getElementById('currentPage').innerText = `Page ${currentPage}`;
+            })
+            .catch(error => console.error('Error fetching users:', error));
+    }
+
+
+
+
+    function fetchArticles() {
+    fetch('http://localhost:8080/articles')
+        .then(response => response.json())
+        .then(articles => {
+            const container = document.getElementById('articlesContainer');
+            if (articles.length === 0) {
+                container.innerHTML = '<p>No articles found. Be the first to write one!</p>';
+                return;
+            }
+
+            // Sort articles by ID descending (latest first)
+            articles.sort((a, b) => b.id - a.id);
+
+            const articlesHtml = articles.map(article => `
+                <div class="article">
+                    <h2>${article.title}</h2>
+                    <p>${article.content}</p>
+                    <p><strong>Author:</strong> ${article.User?.name || "Unknown"}</p>
+                </div>
+                <hr>
+            `).join('');
+
+            container.innerHTML = articlesHtml;
+        })
+        .catch(error => {
+            console.error('Error fetching articles:', error);
+            document.getElementById('articlesContainer').innerHTML = '<p>Error loading articles. Please try again later.</p>';
+        });
+}
+
+
+
+
+    // Change page for pagination
+    function changePage(direction) {
+        if (direction === 'prev' && currentPage > 1) {
+            currentPage--;
+        } else if (direction === 'next') {
+            currentPage++;
+        }
+
+        // Re-fetch users with the updated page
+        fetchUsers();
+    }
+
+    function sortUsers(sortBy, order) {
+        // Preserve existing filters
+        const name = document.getElementById('filterName').value;
+        const email = document.getElementById('filterEmail').value;
+
+        const filters = {};
+        if (name) filters.name = name;
+        if (email) filters.email = email;
+
+        // Fetch users with sorting
+        fetchUsers(filters, sortBy, order);
+    }
+
+    // Handle filter form submission
+    document.getElementById('filterUserForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const name = document.getElementById('filterName').value;
+        const email = document.getElementById('filterEmail').value;
+
+        const filters = {};
+        if (name) filters.name = name;
+        if (email) filters.email = email;
+
+        currentPage = 1; // Reset to page 1 when filtering
+        fetchUsers(filters);
+    });
+
+
+    // Create a new user
+    document.getElementById('createUserForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        // Get input values
+        const name = document.getElementById('name').value;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const role = document.getElementById('role').value;
+
+        fetch(`${apiUrl}/create`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name, email, password, role }) // ✅ Send all fields
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            fetchUsers(); // Refresh the user list
+        })
+        .catch(error => console.error('Error creating user:', error));
+    });
+
+
+
+        // Edit user
+        function editUser(id, name, email, role) {
+        document.getElementById('updateId').value = id;
+        document.getElementById('updateName').value = name;
+        document.getElementById('updateEmail').value = email;
+        
+        // Update role selection in edit form
+        const roleDropdown = document.getElementById('updateRole');
+        if (roleDropdown) {
+            roleDropdown.value = role;
+        }
+    }
+
+
+
+        // Update user
+        // Update user
+    // Update user
+    document.getElementById('updateUserForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const id = parseInt(document.getElementById('updateId').value, 10);
+        const name = document.getElementById('updateName').value;
+        const email = document.getElementById('updateEmail').value;
+        const role = document.getElementById('updateRole').value; // ✅ Get role value
+
+        fetch(`${apiUrl}/update`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ id, name, email, role }) // ✅ Send role field
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to update user');
+            }
+            return response.json();
+        })
+        .then(data => {
+            alert(data.message);
+            fetchUsers(); // Refresh user list after update
+        })
+        .catch(error => console.error('Error updating user:', error));
+    });
+
+
+    document.getElementById('searchUserForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        // Get the user ID from the form
+        const userId = document.getElementById('searchUserId').value;
+
+        // Send the GET request to search for the user
+        fetch(`${apiUrl}/search?id=${userId}`)
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        alert('User not found');
+                    } else {
+                        throw new Error('Failed to fetch user');
+                    }
+                }
+                return response.json();
+            })
+            .then(user => {
+                // Display the search result
+                document.getElementById('searchResult').style.display = 'block';
+                document.getElementById('resultId').textContent = user.id;
+                document.getElementById('resultName').textContent = user.name;
+                document.getElementById('resultEmail').textContent = user.email;
+            })
+            .catch(error => console.error('Error fetching user:', error));
+    });
+
+
+
+
+        // Delete user
+        function deleteUser(id) {
+        if (confirm('Are you sure you want to delete this user?')) {
+            fetch(`${apiUrl}/delete?id=${id}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                fetchUsers(); // Refresh the user list
+            })
+            .catch(error => console.error('Error deleting user:', error));
+        }
+    }
+
+    document.getElementById('sendEmailForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const formData = new FormData();
+        formData.append('recipient', document.getElementById('recipient').value);
+        formData.append('subject', document.getElementById('subject').value);
+        formData.append('body', document.getElementById('body').value);
+
+        // Add selected files to the form data
+        const files = document.getElementById('attachments').files;
+        for (let i = 0; i < files.length; i++) {
+            formData.append('attachments', files[i]);
+        }
+
+        fetch('http://localhost:8080/send-email', {
+            method: 'POST',
+            body: formData,
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || 'Unknown error occurred');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => alert(data.message))
+            .catch(error => alert(`Error sending email: ${error.message}`));
+    });
+
+
+    document.addEventListener("DOMContentLoaded", function () {
+                const token = localStorage.getItem("token");
+
+                function parseJwt(token) {
+                    try {
+                        return JSON.parse(atob(token.split('.')[1]));
+                    } catch (e) {
+                        return null;
+                    }
+                }
+
+                const userData = parseJwt(token);
+
+                console.log("✅ Loaded index.html");
+
+                if (!userData) {
+                    console.error("❌ No token found. Redirecting to login...");
+                    setTimeout(() => {
+                        window.location.href = "/register.html"; // Redirect non-logged users to login
+                    }, 500);
+                    return;
+                }
+
+                if (userData.role !== "admin") {
+                    console.warn("❌ Not an admin! Redirecting to articles.html...");
+                    setTimeout(() => {
+                        window.location.href = "/articles.html";
+                    }, 500);
+                    return;
+                }
+
+                console.log("✅ Admin detected! Staying on index.html");
+            });
+
+        fetchUsers();
+    </script>
+
+    </body>
+    </html>

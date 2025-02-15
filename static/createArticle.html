@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Article</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1 class="header-text">Self blog.kz</h1>
+        <nav class="nav-menu">
+            <a class="header-nav" href="articles.html">View Articles</a>
+            <a class="header-nav" href="register.html" id="auth-link">Login / Register</a>
+            <a class="header-nav" href="createArticle.html" id="create-article-link" style="display: none;">Create Article</a>
+            <a class="header-nav" href="index.html" id="admin-panel-link" style="display: none;">Admin Panel</a>
+            <a id="profile-link" class="header-nav" href="/profile.html" style="display: none;">Profile</a>
+            <button id="logout-button" style="display: none;">Logout</button>
+        </nav>
+    </header>
+    
+    <main>
+        <h2>Create a New Article</h2>
+        <form id="createArticleForm">
+            <input type="text" id="articleTitle" placeholder="Article Title" required>
+            <textarea id="articleContent" placeholder="Article Content" required></textarea>
+            <button type="submit">Post Article</button>
+        </form>
+    </main>
+
+    <script src="nav.js"></script> <!-- Load dynamic navigation -->
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const token = localStorage.getItem("token");
+
+            if (!token) {
+                alert("You must be logged in to create an article.");
+                window.location.href = "/register.html";
+                return;
+            }
+
+            function parseJwt(token) {
+                try {
+                    return JSON.parse(atob(token.split('.')[1]));
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            const userData = parseJwt(token);
+            if (!userData || !userData.user_id) {
+                alert("Invalid session. Please log in again.");
+                localStorage.removeItem("token");
+                window.location.href = "/register.html";
+                return;
+            }
+
+            const currentTime = Math.floor(Date.now() / 1000);
+            if (userData.exp < currentTime) {
+                alert("Session expired. Please log in again.");
+                localStorage.removeItem("token");
+                window.location.href = "/register.html";
+                return;
+            }
+
+            document.getElementById('createArticleForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const title = document.getElementById('articleTitle').value.trim();
+    const content = document.getElementById('articleContent').value.trim();
+    const token = localStorage.getItem("token");
+
+    if (!title || !content) {
+        alert("Title and content are required!");
+        return;
+    }
+
+    if (!token) {
+        alert("You must be logged in to post an article!");
+        window.location.href = "/register.html";
+        return;
+    }
+
+    fetch('http://localhost:8080/articles', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ title, content })
+    })
+    .then(async response => {
+        if (!response.ok) {
+            if (response.status === 401) {
+                alert("Session expired! Please log in again.");
+                localStorage.removeItem("token");
+                window.location.href = "/register.html";
+                return;
+            }
+            const errorText = await response.text();
+            throw new Error(errorText);
+        }
+        return response.json();
+    })
+    .then(data => {
+        alert("Article posted successfully!");
+        window.location.href = "/articles.html";
+    })
+    .catch(error => {
+        console.error('Error posting article:', error);
+        alert(`Failed to post article: ${error.message}`);
+    });
+});
+
+
+
+
+        });
+    </script>
+</body>
+</html>

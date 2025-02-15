@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1 class="header-text">Self Blog.kz</h1>
+        <nav class="nav-menu">
+            <a class="header-nav" href="articles.html">View Articles</a>
+            <a class="header-nav" href="/createArticle.html" id="create-article-link" style="display: none;">Create Article</a>
+            <a class="header-nav" href="index.html" id="admin-panel-link" style="display: none;">Admin Panel</a>
+            <a id="profile-link" class="header-nav" href="/profile.html" style="display: none;">Profile</a>
+            <button id="logout-button">Logout</button>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Your Profile</h2>
+        <div id="profile-container">
+            <p><strong>Name:</strong> <span id="profile-name"></span></p>
+            <p><strong>Email:</strong> <span id="profile-email"></span></p>
+            <!-- Add image tag for profile picture -->
+            <img id="profile-picture" src="" alt="Profile Picture" style="width: 100px; height: 100px; border-radius: 50%; margin-top: 10px;" />
+            <button id="edit-profile-btn">Edit Profile</button>
+        </div>
+        
+        <div id="edit-profile-container" style="display: none;">
+            <h3>Edit Profile</h3>
+            <form id="editProfileForm" enctype="multipart/form-data">
+                <input type="text" id="edit-name" placeholder="Name" required>
+                <input type="email" id="edit-email" placeholder="Email" required>
+                <input type="password" id="edit-password" placeholder="New Password (Leave empty if not changing)">
+                <input type="file" id="edit-profile-picture" accept="image/*">
+                <button type="submit">Save</button>
+            </form>
+        </div>       
+
+        <h2>Support the Site</h2>
+<p>Your donations help keep the platform running and support the author!</p>
+<input type="number" id="donationAmount" placeholder="Enter amount (USD)" min="1" required>
+<button id="donateButton">Donate</button>
+
+<div id="donationStatus"></div>
+
+        <h2>Your Transactions</h2>
+<div id="transaction-list"></div>
+    </main>
+
+    <script src="nav.js"></script>
+
+    <script>
+document.addEventListener("DOMContentLoaded", function() {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+        window.location.href = "/register.html";
+        return;
+    }
+
+    // Fetch the current user profile
+    fetch('http://localhost:8080/profile', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+    if (data.name && data.email) {
+        document.getElementById('profile-name').textContent = data.name;
+        document.getElementById('profile-email').textContent = data.email;
+    }
+    
+    // Assuming profile_picture is the filename in the database
+    if (data.profile_picture) {
+    let imagePath = data.profile_picture.startsWith("/uploads/") ? data.profile_picture : "/uploads/" + data.profile_picture;
+    document.getElementById('profile-picture').src = imagePath;
+}
+})
+    .catch(error => {
+        console.error('Error fetching profile:', error);
+    });
+
+    // ✅ Fetch Transactions with Debugging
+    fetch("http://localhost:8080/get-transactions", {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` }
+    })
+    .then(response => response.json())
+    .then(transactions => {
+        console.log("🔍 Transactions API Response:", transactions); // ✅ Debugging
+
+        const transactionList = document.getElementById("transaction-list");
+        transactionList.innerHTML = "";
+
+        if (!Array.isArray(transactions) || transactions.length === 0) {
+            transactionList.innerHTML = "<p>No transactions found.</p>";
+            return;
+        }
+
+        transactions.forEach(transaction => {
+            if (!transaction.id || !transaction.amount || !transaction.status) {
+                console.error("❌ Transaction missing data:", transaction); // ✅ Debugging
+                return;
+            }
+
+            const transactionItem = document.createElement("div");
+            transactionItem.classList.add("transaction-item");
+
+            // ✅ Add a color-coded status
+            let statusClass = "status-pending";
+            if (transaction.status === "Completed") statusClass = "status-completed";
+            if (transaction.status === "Declined") statusClass = "status-declined";
+
+            transactionItem.innerHTML = `
+                <p><strong>Transaction ID:</strong> ${transaction.id}</p>
+                <p><strong>Amount:</strong> $${transaction.amount.toFixed(2)}</p>
+                <p><strong>Status:</strong> <span class="${statusClass}">${transaction.status}</span></p>
+            `;
+
+            transactionList.appendChild(transactionItem);
+        });
+    })
+    .catch(error => console.error("❌ Error fetching transactions:", error));
+
+    // Show edit profile form
+    document.getElementById('edit-profile-btn').addEventListener('click', function() {
+        document.getElementById('profile-container').style.display = 'none';
+        document.getElementById('edit-profile-container').style.display = 'block';
+
+        document.getElementById('edit-name').value = document.getElementById('profile-name').textContent;
+        document.getElementById('edit-email').value = document.getElementById('profile-email').textContent;
+    });
+
+    // Handle profile update
+    document.getElementById('editProfileForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const name = document.getElementById('edit-name').value;
+        const email = document.getElementById('edit-email').value;
+        const password = document.getElementById('edit-password').value;
+        const profilePicture = document.getElementById('edit-profile-picture').files[0];
+
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('email', email);
+
+        if (password) formData.append('password', password);
+        if (profilePicture) formData.append('profile_picture', profilePicture);
+
+        fetch('http://localhost:8080/profile', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert('Profile updated successfully');
+            window.location.reload();
+        })
+        .catch(error => {
+            console.error('Error updating profile:', error);
+        });
+    });
+
+    // Logout functionality
+    document.getElementById('logout-button').addEventListener('click', function() {
+        localStorage.removeItem('token');
+        window.location.href = '/register.html';
+    });
+});
+
+
+document.getElementById("donateButton").addEventListener("click", async function () {
+    const token = localStorage.getItem("token");
+    if (!token) {
+        alert("You must be logged in to donate.");
+        window.location.href = "/register.html";
+        return;
+    }
+
+    const amount = document.getElementById("donationAmount").value;
+    if (!amount || amount <= 0) {
+        alert("Please enter a valid donation amount.");
+        return;
+    }
+
+    const response = await fetch("http://localhost:8080/create-transaction", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount: parseFloat(amount) })
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+        document.getElementById("donationStatus").innerHTML = `<p style="color: green;">Transaction created! Redirecting to payment...</p>`;
+        window.location.href = `/payment.html?transaction_id=${data.transaction_id}`;
+    } else {
+        alert(`Error: ${data.message}`);
+    }
+});
+
+
+    </script>
+</body>
+</html>

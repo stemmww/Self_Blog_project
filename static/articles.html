@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Articles</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1 class="header-text">Self blog.kz</h1>
+        <nav class="nav-menu">
+            <a class="header-nav" href="/articles.html">View Articles</a>
+            <a class="header-nav" href="/register.html" id="auth-link">Login / Register</a>
+            <a class="header-nav" href="/createArticle.html" id="create-article-link" style="display: none;">Create Article</a>
+            <a class="header-nav" href="/index.html" id="admin-panel-link" style="display: none;">Admin Panel</a>
+            <a id="profile-link" class="header-nav" href="/profile.html" style="display: none;">Profile</a>
+            <button id="logout-button" style="display: none;">Logout</button>
+        </nav>     
+    </header>
+    <main>
+        <div id="articlesContainer">
+            <h2>Loading articles...</h2>
+        </div>
+    </main>
+    
+    <script src="nav.js"></script>
+
+    <script>
+        console.log("✅ Script Loaded: Checking Admin Panel Link");
+        const apiUrl = 'http://localhost:8080/articles';
+        function fetchArticles() {
+    const container = document.getElementById('articlesContainer');
+    container.innerHTML = '<h2>Loading articles...</h2>'; // Show loading message
+
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(articles => {
+            if (articles.length === 0) {
+                container.innerHTML = '<p>No articles found. Be the first to write one!</p>';
+                return;
+            }
+
+            const articlesHtml = articles.map(article => `
+                <div class="article">
+                    <h2>${article.title}</h2>
+                    <p>${article.content}</p>
+                    <p><strong>Author:</strong> ${article.name ? article.name : "Unknown"}</p>
+                </div>
+                <hr>
+            `).join('');
+
+            container.innerHTML = articlesHtml;
+        })
+        .catch(error => {
+            console.error('Error fetching articles:', error);
+            container.innerHTML = '<p>Error loading articles. Please try again later.</p>';
+        });
+}
+
+
+        fetchArticles();
+    </script>
+</body>
+</html>
