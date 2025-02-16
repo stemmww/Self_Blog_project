@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Support Chat</title>
+    <style>
+        #chat-window {
+            height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -18,8 +27,8 @@
 
     <main>
         <h2>Chat with Support</h2>
-        <div id="chat-window" style="height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
-            <p>Connecting to support...</p>
+        <div id="chat-window">
+            <p id="status">Connecting to support...</p>
         </div>
 
         <input type="text" id="messageInput" placeholder="Type a message" style="width: 80%;" />
@@ -36,43 +45,62 @@
         let socket;
         let chatId;
 
-        // Function to initialize chat
         async function initChat() {
-            const response = await fetch("http://localhost:8080/create-chat", {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${token}` }
-            });
+            try {
+                // Получаем chatId
+                const response = await fetch("http://localhost:8080/create-chat", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
 
-            if (!response.ok) {
-                const error = await response.text();
-                alert(`Error: ${error}`);
-                return;
+                if (!response.ok) {
+                    const error = await response.text();
+                    alert(`Error: ${error}`);
+                    return;
+                }
+
+                const chat = await response.json();
+                chatId = chat.id;
+
+                // Подключаем WebSocket
+                const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+                const wsUrl = `${protocol}localhost:8080/ws?token=${token}&chat_id=${chatId}`;
+                console.log(`Connecting to WebSocket: ${wsUrl}`);
+                socket = new WebSocket(wsUrl);
+
+                socket.onopen = () => {
+                    console.log("✅ WebSocket connected");
+                    document.getElementById("status").innerText = "Connected to support.";
+                };
+
+                socket.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    displayMessage(message.sender, message.content, message.time);
+                };
+
+                socket.onerror = (error) => {
+                    console.error("❌ WebSocket error:", error);
+                    alert("WebSocket connection failed.");
+                };
+
+                socket.onclose = () => {
+                    console.warn("⚠️ WebSocket closed");
+                    document.getElementById("status").innerText = "Disconnected from support.";
+                };
+
+            } catch (err) {
+                console.error("❌ Error initializing chat:", err);
+                alert("Failed to initialize chat.");
             }
-
-            const chat = await response.json();
-            chatId = chat.id;
-
-            // Connect to WebSocket
-            socket = new WebSocket(`ws://localhost:8080/ws?token=${token}&chat_id=${chatId}`);
-
-            socket.onopen = () => {
-                console.log("✅ Connected to support chat");
-            };
-
-            socket.onmessage = (event) => {
-                const message = JSON.parse(event.data);
-                displayMessage(message.sender, message.content, message.time);
-            };
-
-            socket.onclose = () => {
-                console.log("❌ Disconnected from support");
-            };
         }
 
         function sendMessage() {
             const input = document.getElementById("messageInput");
             const message = input.value.trim();
-            if (!message) return;
+            if (!message || !socket || socket.readyState !== WebSocket.OPEN) {
+                alert("WebSocket is not connected.");
+                return;
+            }
 
             const msg = {
                 chat_id: chatId,
@@ -98,8 +126,7 @@
             window.location.href = "/register.html";
         }
 
-        // Start chat on page load
-        initChat();
+        window.addEventListener('DOMContentLoaded', initChat);
     </script>
 </body>
 </html>

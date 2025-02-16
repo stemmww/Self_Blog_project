@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Support Panel</title>
+    <style>
+        #chat-list {
+            height: 150px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 5px;
+            margin-bottom: 10px;
+        }
+
+        #chat-window {
+            height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -18,12 +35,12 @@
 
     <main>
         <h2>Active Chats</h2>
-        <div id="chat-list" style="height: 150px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px; margin-bottom: 10px;">
+        <div id="chat-list">
             <p>Loading active chats...</p>
         </div>
 
         <h3>Chat Window</h3>
-        <div id="chat-window" style="height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+        <div id="chat-window">
             <p>Select a chat to start conversation...</p>
         </div>
 
@@ -42,7 +59,6 @@
         let socket;
         let currentChatId = null;
 
-        // Fetch all active chats
         async function fetchActiveChats() {
             const response = await fetch("http://localhost:8080/active-chats", {
                 method: "GET",
@@ -69,7 +85,6 @@
             });
         }
 
-        // Join a chat via WebSocket
         function joinChat(chatId) {
             currentChatId = chatId;
             document.getElementById("chat-window").innerHTML = `<p>Connecting to Chat #${chatId}...</p>`;
@@ -78,7 +93,8 @@
                 socket.close();
             }
 
-            socket = new WebSocket(`ws://localhost:8080/ws?token=${token}&chat_id=${chatId}`);
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            socket = new WebSocket(`${protocol}localhost:8080/ws?token=${token}&chat_id=${chatId}`);
 
             socket.onopen = () => {
                 console.log(`✅ Connected to chat ${chatId}`);
@@ -95,7 +111,6 @@
             };
         }
 
-        // Send a message
         function sendMessage() {
             const input = document.getElementById("messageInput");
             const message = input.value.trim();
@@ -112,7 +127,6 @@
             input.value = "";
         }
 
-        // Display a message in the chat window
         function displayMessage(sender, content, time) {
             const chatWindow = document.getElementById("chat-window");
             const messageElement = document.createElement("div");
@@ -121,7 +135,6 @@
             chatWindow.scrollTop = chatWindow.scrollHeight;
         }
 
-        // Close the current chat
         async function closeChat() {
             if (!currentChatId) {
                 alert("No chat selected.");
@@ -137,20 +150,18 @@
                 alert(`Chat #${currentChatId} closed.`);
                 document.getElementById("chat-window").innerHTML = `<p>Chat #${currentChatId} closed by admin.</p>`;
                 currentChatId = null;
-                fetchActiveChats(); // Refresh chat list
+                fetchActiveChats(); 
                 socket.close();
             } else {
                 alert("Failed to close chat.");
             }
         }
 
-        // Logout function
         function logout() {
             localStorage.removeItem("token");
             window.location.href = "/register.html";
         }
 
-        // Load active chats on page load
         fetchActiveChats();
     </script>
 </body>

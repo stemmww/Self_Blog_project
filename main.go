@@ -2,6 +2,7 @@ package main
 
 // +profile, +manage data, +selenium login
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,7 +15,6 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
@@ -41,15 +41,16 @@ type User struct {
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
+		// ✅ Разрешить все источники (для теста)
 		return true
 	},
 }
 
 var (
-	clients   = make(map[*websocket.Conn]uint) // WebSocket clients (connection: user_id)
-	adminConn = make(map[uint]*websocket.Conn)
-	broadcast = make(chan ChatMessage)
-	mu        sync.Mutex
+	clients   = make(map[uint]*websocket.Conn) // ChatID -> User WebSocket
+	adminConn = make(map[uint]*websocket.Conn) // ChatID -> Admin WebSocket
+	broadcast = make(chan ChatMessage)         // Канал для рассылки сообщений
+	mu        sync.Mutex                       // Мьютекс для синхронизации
 )
 
 // Define the Transaction struct
@@ -199,8 +200,9 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 func authMiddleware(next http.HandlerFunc, requiredRole string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// 1️⃣ Получаем токен из заголовка
 		tokenString := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		tokenString = strings.TrimSpace(tokenString) // Remove any extra spaces
+		tokenString = strings.TrimSpace(tokenString) // Удаляем пробелы
 
 		fmt.Println("Raw Authorization header:", tokenString)
 
@@ -209,39 +211,52 @@ func authMiddleware(next http.HandlerFunc, requiredRole string) http.HandlerFunc
 			return
 		}
 
-		// Убираем "Bearer " из токена
-		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
-		fmt.Println("Extracted Token:", tokenString)
-
+		// 2️⃣ Парсим токен
 		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
 			return jwtSecret, nil
 		})
+
+		// 3️⃣ Обработка ошибок токена
 		if err != nil {
 			fmt.Println("JWT parsing error:", err)
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
-		claims, ok := token.Claims.(*Claims)
-		if !ok || !token.Valid {
+
+		// 4️⃣ Проверка валидности токена и структуры
+		if !token.Valid {
 			fmt.Println("Invalid token structure")
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
 
-		if err != nil || !token.Valid {
-			fmt.Println("JWT validation failed:", err)
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+		// 5️⃣ Проверяем содержимое claims
+		if claims.UserID == 0 || claims.Role == "" {
+			fmt.Println("Claims are incomplete")
+			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
 			return
 		}
 
-		fmt.Println("Token valid! UserID:", claims.UserID, "Role:", claims.Role)
+		// ✅ Логируем валидный токен
+		fmt.Println("✅ Token valid! UserID:", claims.UserID, "Role:", claims.Role)
 
-		// Пропускаем запрос дальше
-		next(w, r)
+		// 6️⃣ Проверяем роль пользователя, если требуется
+		if requiredRole != "" && claims.Role != requiredRole {
+			fmt.Println("🚫 Forbidden: Role mismatch. Required:", requiredRole, "Found:", claims.Role)
+			http.Error(w, "Forbidden: Insufficient permissions", http.StatusForbidden)
+			return
+		}
+
+		// 7️⃣ Добавляем `user_id` и `role` в контекст запроса
+		ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
+		ctx = context.WithValue(ctx, "role", claims.Role)
+
+		// 8️⃣ Пропускаем запрос дальше с обновлённым контекстом
+		next(w, r.WithContext(ctx))
 	}
 }
 
@@ -568,6 +583,22 @@ func (rl *rateLimiter) limitMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Разрешаем WebSocket-запросы
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 
 	r := mux.NewRouter()
@@ -599,7 +630,8 @@ func main() {
 	logger.Info("Database connection established and migrations applied")
 
 	// ROUTES ////////////////////////////////////////////////////////////////////////////////
-	r.HandleFunc("/ws", authMiddleware(wsHandler, "user")).Methods("GET")
+	r.HandleFunc("/ws", wsHandler)
+
 	r.HandleFunc("/create-chat", authMiddleware(createChatHandler, "user")).Methods("POST")
 	r.HandleFunc("/active-chats", authMiddleware(getActiveChatsHandler, "admin")).Methods("GET")
 	r.HandleFunc("/close-chat", authMiddleware(closeChatHandler, "admin")).Methods("POST")
@@ -618,6 +650,7 @@ func main() {
 	r.Handle("/search", rl.limitMiddleware(http.HandlerFunc(searchUser))).Methods("GET")
 	r.Handle("/articles", rl.limitMiddleware(http.HandlerFunc(handleArticles))).Methods("GET", "POST")
 	r.Handle("/send-email", rl.limitMiddleware(http.HandlerFunc(sendEmail))).Methods("POST")
+	handler := enableCORS(r)
 
 	http.Handle("/uploads/", http.StripPrefix("/uploads", http.FileServer(http.Dir("./uploads"))))
 
@@ -701,14 +734,6 @@ func main() {
 		http.Redirect(w, r, "/articles.html", http.StatusFound) // Always go to articles.html
 	})
 
-	// Оберните ваш роутер в CORS middleware
-	handler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:8080"}, // Разрешите запросы с этого адреса
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type"},
-		AllowCredentials: true,
-	}).Handler(r)
-
 	r.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		path, err := route.GetPathTemplate()
 		if err == nil {
@@ -716,7 +741,7 @@ func main() {
 		}
 		return nil
 	})
-	go handleMessages(db)
+	go handleMessages()
 	// Start the server
 	port := 8080
 	logger.WithFields(logrus.Fields{
