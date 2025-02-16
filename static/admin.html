@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Support Panel</title>
+    <link rel="stylesheet" href="style.css">
     <style>
         #chat-list {
             height: 150px;
@@ -46,7 +47,7 @@
 
         <input type="text" id="messageInput" placeholder="Type a message" style="width: 80%;" />
         <button onclick="sendMessage()">Send</button>
-        <button onclick="closeChat()" style="background-color: red; color: white;">Close Chat</button>
+        <!-- <button onclick="closeChat()" style="background-color: red; color: white;">Close Chat</button> -->
     </main>
 
     <script>
@@ -86,30 +87,46 @@
         }
 
         function joinChat(chatId) {
-            currentChatId = chatId;
-            document.getElementById("chat-window").innerHTML = `<p>Connecting to Chat #${chatId}...</p>`;
+    currentChatId = chatId;
+    document.getElementById("chat-window").innerHTML = `<p>Connecting to Chat #${chatId}...</p>`;
 
-            if (socket) {
-                socket.close();
-            }
+    // Закрываем старое соединение, если есть
+    if (socket) {
+        socket.close();
+    }
 
-            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            socket = new WebSocket(`${protocol}localhost:8080/ws?token=${token}&chat_id=${chatId}`);
+    // ✅ Подключаем WebSocket как админ (добавляем role=admin)
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const wsUrl = `${protocol}localhost:8080/ws?chat_id=${chatId}&role=admin`;
+    console.log(`Connecting to WebSocket as Admin: ${wsUrl}`);
+    socket = new WebSocket(wsUrl);
 
-            socket.onopen = () => {
-                console.log(`✅ Connected to chat ${chatId}`);
-                document.getElementById("chat-window").innerHTML = `<p>Chat #${chatId} started. Type a message below.</p>`;
-            };
+    // ✅ При успешном подключении
+    socket.onopen = () => {
+        console.log(`✅ WebSocket connected to Chat #${chatId} as Admin`);
+        document.getElementById("chat-window").innerHTML = `<p>Chat #${chatId} started. Type a message below.</p>`;
+    };
 
-            socket.onmessage = (event) => {
-                const message = JSON.parse(event.data);
-                displayMessage(message.sender, message.content, message.time);
-            };
+    // ✅ При получении сообщения от пользователя
+    socket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        displayMessage(message.sender, message.content, message.time);
+    };
 
-            socket.onclose = () => {
-                console.log(`❌ Disconnected from chat ${chatId}`);
-            };
-        }
+    // ✅ При ошибке WebSocket
+    socket.onerror = (error) => {
+        console.error("❌ WebSocket error:", error);
+        alert("WebSocket connection error.");
+    };
+
+    // ✅ При закрытии соединения
+    socket.onclose = () => {
+        console.warn(`❌ WebSocket closed for Chat #${chatId}`);
+    };
+}
+
+
+
 
         function sendMessage() {
             const input = document.getElementById("messageInput");

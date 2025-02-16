@@ -11,27 +11,17 @@ import (
 )
 
 // 📌 Обработчик WebSocket подключений
+// 📡 Обработчик WebSocket
 func wsHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("📡 WebSocket: New connection attempt")
-
 	query := r.URL.Query()
-	token := query.Get("token")
-	chatIDParam := query.Get("chat_id")
+	chatID := parseChatID(query.Get("chat_id"))
+	role := query.Get("role") // user или admin
 
-	if token == "" || chatIDParam == "" {
-		http.Error(w, "Missing token or chat_id", http.StatusBadRequest)
-		log.Println("❌ Missing token or chat_id")
+	if chatID == 0 || (role != "user" && role != "admin") {
+		http.Error(w, "Invalid parameters", http.StatusBadRequest)
 		return
 	}
 
-	chatID := parseChatID(chatIDParam)
-	if chatID == 0 {
-		http.Error(w, "Invalid chat_id", http.StatusBadRequest)
-		log.Println("❌ Invalid chat_id format")
-		return
-	}
-
-	// Обновляем соединение до WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("❌ WebSocket upgrade error:", err)
@@ -39,17 +29,20 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	log.Printf("✅ WebSocket connected to ChatID: %d", chatID)
+	log.Printf("✅ WebSocket connected: ChatID=%d, Role=%s", chatID, role)
 
-	// Регистрируем клиента
+	// Регистрируем соединение в зависимости от роли
 	mu.Lock()
-	clients[chatID] = conn
+	if role == "user" {
+		clients[chatID] = conn
+	} else if role == "admin" {
+		adminConn[chatID] = conn
+	}
 	mu.Unlock()
 
 	// Отправляем историю сообщений
 	sendChatHistory(chatID, conn)
 
-	// Читаем входящие сообщения
 	for {
 		var msg ChatMessage
 		if err := conn.ReadJSON(&msg); err != nil {
@@ -60,33 +53,49 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		msg.ChatID = chatID
 		msg.Time = time.Now().Format("15:04:05")
 
-		log.Printf("📨 Message received: %+v", msg)
+		log.Printf("📨 Received message: %+v", msg)
 
 		// Сохраняем сообщение в базе данных
 		saveMessageToDB(msg)
 
-		// Отправляем сообщение в канал для трансляции
-		broadcast <- msg
+		// Пересылаем сообщение другому участнику чата
+		mu.Lock()
+		if role == "user" {
+			if admin, ok := adminConn[chatID]; ok {
+				admin.WriteJSON(msg)
+			}
+		} else if role == "admin" {
+			if user, ok := clients[chatID]; ok {
+				user.WriteJSON(msg)
+			}
+		}
+		mu.Unlock()
 	}
 
-	// Удаляем клиента из списка при отключении
+	// Удаляем соединение при отключении
 	mu.Lock()
-	delete(clients, chatID)
+	if role == "user" {
+		delete(clients, chatID)
+	} else if role == "admin" {
+		delete(adminConn, chatID)
+	}
 	mu.Unlock()
 
-	log.Printf("❌ WebSocket disconnected from ChatID: %d", chatID)
+	log.Printf("❌ WebSocket disconnected: ChatID=%d, Role=%s", chatID, role)
 }
 
-// 📡 Трансляция сообщений всем подключённым клиентам
+// 📡 Трансляция сообщений всем участникам чата
 func handleMessages() {
 	for {
 		msg := <-broadcast
 		mu.Lock()
-		if conn, ok := clients[msg.ChatID]; ok {
-			if err := conn.WriteJSON(msg); err != nil {
-				log.Println("❌ Error sending message:", err)
-				conn.Close()
-				delete(clients, msg.ChatID)
+		for chatID, conn := range clients {
+			if chatID == msg.ChatID { // Рассылаем только участникам этого чата
+				if err := conn.WriteJSON(msg); err != nil {
+					log.Println("❌ Error sending message:", err)
+					conn.Close()
+					delete(clients, chatID)
+				}
 			}
 		}
 		mu.Unlock()

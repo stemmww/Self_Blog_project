@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Support Chat</title>
+    <link rel="stylesheet" href="style.css">
     <style>
         #chat-window {
             height: 300px;
@@ -64,19 +65,18 @@
 
                 // Подключаем WebSocket
                 const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-                const wsUrl = `${protocol}localhost:8080/ws?token=${token}&chat_id=${chatId}`;
-                console.log(`Connecting to WebSocket: ${wsUrl}`);
-                socket = new WebSocket(wsUrl);
+                const wsUrl = `ws://localhost:8080/ws?chat_id=${chatId}&role=user`;
+console.log(`Connecting to WebSocket as User: ${wsUrl}`);
+socket = new WebSocket(wsUrl);
+socket.onopen = () => {
+    console.log("✅ WebSocket connected as User");
+    document.getElementById("status").innerText = "Connected to support.";
+};
 
-                socket.onopen = () => {
-                    console.log("✅ WebSocket connected");
-                    document.getElementById("status").innerText = "Connected to support.";
-                };
-
-                socket.onmessage = (event) => {
-                    const message = JSON.parse(event.data);
-                    displayMessage(message.sender, message.content, message.time);
-                };
+socket.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    displayMessage(message.sender, message.content, message.time);
+};
 
                 socket.onerror = (error) => {
                     console.error("❌ WebSocket error:", error);
@@ -93,6 +93,7 @@
                 alert("Failed to initialize chat.");
             }
         }
+        
 
         function sendMessage() {
             const input = document.getElementById("messageInput");
