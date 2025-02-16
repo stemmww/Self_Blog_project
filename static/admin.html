@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Support Panel</title>
+</head>
+<body>
+    <header>
+        <h1>Admin Support Panel</h1>
+        <nav>
+            <a href="/articles.html">Articles</a>
+            <a href="/profile.html">Profile</a>
+            <a href="/admin.html">Active Chats</a>
+            <button onclick="logout()">Logout</button>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Active Chats</h2>
+        <div id="chat-list" style="height: 150px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px; margin-bottom: 10px;">
+            <p>Loading active chats...</p>
+        </div>
+
+        <h3>Chat Window</h3>
+        <div id="chat-window" style="height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+            <p>Select a chat to start conversation...</p>
+        </div>
+
+        <input type="text" id="messageInput" placeholder="Type a message" style="width: 80%;" />
+        <button onclick="sendMessage()">Send</button>
+        <button onclick="closeChat()" style="background-color: red; color: white;">Close Chat</button>
+    </main>
+
+    <script>
+        const token = localStorage.getItem("token");
+        if (!token) {
+            alert("Admin access only. Please log in.");
+            window.location.href = "/register.html";
+        }
+
+        let socket;
+        let currentChatId = null;
+
+        // Fetch all active chats
+        async function fetchActiveChats() {
+            const response = await fetch("http://localhost:8080/active-chats", {
+                method: "GET",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            const chats = await response.json();
+            const chatList = document.getElementById("chat-list");
+            chatList.innerHTML = "";
+
+            if (chats.length === 0) {
+                chatList.innerHTML = "<p>No active chats currently.</p>";
+                return;
+            }
+
+            chats.forEach(chat => {
+                const chatItem = document.createElement("div");
+                chatItem.style.padding = "5px";
+                chatItem.style.cursor = "pointer";
+                chatItem.style.borderBottom = "1px solid #ccc";
+                chatItem.textContent = `Chat #${chat.id} (User ${chat.user_id})`;
+                chatItem.onclick = () => joinChat(chat.id);
+                chatList.appendChild(chatItem);
+            });
+        }
+
+        // Join a chat via WebSocket
+        function joinChat(chatId) {
+            currentChatId = chatId;
+            document.getElementById("chat-window").innerHTML = `<p>Connecting to Chat #${chatId}...</p>`;
+
+            if (socket) {
+                socket.close();
+            }
+
+            socket = new WebSocket(`ws://localhost:8080/ws?token=${token}&chat_id=${chatId}`);
+
+            socket.onopen = () => {
+                console.log(`✅ Connected to chat ${chatId}`);
+                document.getElementById("chat-window").innerHTML = `<p>Chat #${chatId} started. Type a message below.</p>`;
+            };
+
+            socket.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                displayMessage(message.sender, message.content, message.time);
+            };
+
+            socket.onclose = () => {
+                console.log(`❌ Disconnected from chat ${chatId}`);
+            };
+        }
+
+        // Send a message
+        function sendMessage() {
+            const input = document.getElementById("messageInput");
+            const message = input.value.trim();
+            if (!message || !currentChatId) return;
+
+            const msg = {
+                chat_id: currentChatId,
+                sender: "admin",
+                content: message
+            };
+
+            socket.send(JSON.stringify(msg));
+            displayMessage("Admin", message, new Date().toLocaleTimeString());
+            input.value = "";
+        }
+
+        // Display a message in the chat window
+        function displayMessage(sender, content, time) {
+            const chatWindow = document.getElementById("chat-window");
+            const messageElement = document.createElement("div");
+            messageElement.innerHTML = `<strong>${sender}</strong> [${time}]: ${content}`;
+            chatWindow.appendChild(messageElement);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        // Close the current chat
+        async function closeChat() {
+            if (!currentChatId) {
+                alert("No chat selected.");
+                return;
+            }
+
+            const response = await fetch(`http://localhost:8080/close-chat?chat_id=${currentChatId}`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                alert(`Chat #${currentChatId} closed.`);
+                document.getElementById("chat-window").innerHTML = `<p>Chat #${currentChatId} closed by admin.</p>`;
+                currentChatId = null;
+                fetchActiveChats(); // Refresh chat list
+                socket.close();
+            } else {
+                alert("Failed to close chat.");
+            }
+        }
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem("token");
+            window.location.href = "/register.html";
+        }
+
+        // Load active chats on page load
+        fetchActiveChats();
+    </script>
+</body>
+</html>

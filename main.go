@@ -13,6 +13,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
@@ -37,6 +38,19 @@ type User struct {
 	VerificationCode string `json:"-"`
 	ProfilePicture   string `json:"profile_picture"` // Add this line for storing the profile picture path or URL
 }
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+var (
+	clients   = make(map[*websocket.Conn]uint) // WebSocket clients (connection: user_id)
+	adminConn = make(map[uint]*websocket.Conn)
+	broadcast = make(chan ChatMessage)
+	mu        sync.Mutex
+)
 
 // Define the Transaction struct
 type Transaction struct {
@@ -101,26 +115,29 @@ type EmailRequest struct {
 	Body      string `json:"body"`
 }
 
-// // reg
-type ChatMessage struct {
-	ID        uint      `gorm:"primaryKey"`
-	Username  string    `json:"username"`
-	Content   string    `json:"content"`
-	Timestamp time.Time `json:"timestamp"`
+type Chat struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	UserID    uint      `json:"user_id"`
+	Status    string    `json:"status"` // "active" or "inactive"
+	CreatedAt time.Time `json:"created_at"`
 }
 
-func initDatabase() {
-	var err error
-	dsn := "user=postgres password=assbreaker2023 dbname=bloguser port=5432 sslmode=disable"
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
-	}
+type ChatMessage struct {
+	ChatID   uint   `json:"chat_id"`
+	Sender   string `json:"sender"`
+	Content  string `json:"content"`
+	UserID   uint   `json:"user_id"`
+	Username string `json:"username"`
+	Time     string `json:"time"`
+}
 
-	// Auto-migrate ChatMessage table
-	if err := db.AutoMigrate(&ChatMessage{}); err != nil {
-		log.Fatal("Failed to migrate database:", err)
-	}
+type Message struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	ChatID    uint      `json:"chat_id"`
+	UserID    uint      `json:"user_id"`
+	Sender    string    `json:"sender"` // "user" or "admin"
+	Content   string    `json:"content"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -553,8 +570,6 @@ func (rl *rateLimiter) limitMiddleware(next http.Handler) http.Handler {
 
 func main() {
 
-	initDatabase()
-
 	r := mux.NewRouter()
 	// Initialize the rate limiter
 	//Initialize the rate limiter
@@ -566,7 +581,7 @@ func main() {
 	logger.Info("Server is starting...")
 
 	// Database Connection ///////////////////////////////////////////////////////////////////////
-	dsn := "user=postgres password=assbreaker2023 dbname=bloguser port=5432 sslmode=disable"
+	dsn := "user=postgres password=admin dbname=bloguser port=5433 sslmode=disable"
 	var err error
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -575,7 +590,7 @@ func main() {
 		}).Fatal("Failed to connect to the database")
 	}
 	// Auto-migrate: Create tables if they don't exist
-	if err := db.AutoMigrate(&User{}, &Article{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &Article{}, &Chat{}, &Message{}); err != nil {
 		logger.WithFields(logrus.Fields{
 			"error": err.Error(),
 		}).Fatal("Failed to auto-migrate tables")
@@ -584,6 +599,10 @@ func main() {
 	logger.Info("Database connection established and migrations applied")
 
 	// ROUTES ////////////////////////////////////////////////////////////////////////////////
+	r.HandleFunc("/ws", authMiddleware(wsHandler, "user")).Methods("GET")
+	r.HandleFunc("/create-chat", authMiddleware(createChatHandler, "user")).Methods("POST")
+	r.HandleFunc("/active-chats", authMiddleware(getActiveChatsHandler, "admin")).Methods("GET")
+	r.HandleFunc("/close-chat", authMiddleware(closeChatHandler, "admin")).Methods("POST")
 	r.HandleFunc("/register", registerHandler).Methods("POST")
 	r.HandleFunc("/login", loginHandler).Methods("POST")
 	r.HandleFunc("/verify-email", verifyEmailHandler).Methods("POST")
@@ -697,15 +716,9 @@ func main() {
 		}
 		return nil
 	})
-
-	go handleMessages()
-
-	// Serve static HTML for the chat
-	http.Handle("/", http.FileServer(http.Dir(".")))
-	http.HandleFunc("/ws", chatHandler)
-
+	go handleMessages(db)
 	// Start the server
-	port := 8090
+	port := 8080
 	logger.WithFields(logrus.Fields{
 		"port": port,
 	}).Info("Starting server")

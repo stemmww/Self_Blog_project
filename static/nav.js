@@ -5,6 +5,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const createArticleLink = document.getElementById("create-article-link");
     const adminPanelLink = document.getElementById("admin-panel-link");
     const profileLink = document.getElementById("profile-link");
+    const userSupport = document.getElementById("support-user");
+    const adminSupport = document.getElementById("admin-support-user");
+
 
     function parseJwt(token) {
         try {
