@@ -1,22 +1,45 @@
 # Personal Blog Project
 
-This is a feature-rich personal blog project built with Go (Golang) and PostgreSQL. It provides a RESTful API for managing users and articles and includes a frontend for user interactions.
+This is a multifunctional personal blog project built on Go (Golang) programming language and PostgreSQL object-relational database management system. This project provides RESTful API for managing users and articles and includes HTML , CSS, JS frontend for user interaction. The project includes roles (admin, user) for distribution of features. Admins have full access to the user database and can also manage, modify the database. User role includes viewing articles of other users, as well as the ability to create your own article. With all the functionality you can read below.
 
 ## Features
 
 ### Backend Features
-- **User Management**:
-  - Create, Read, Update, and Delete (CRUD) operations for users.
-  - User search with filtering and sorting.
-  - Pagination support for large user datasets.
-- **Article Management**:
-  - Create, Read, and Fetch articles linked to specific users.
-  - Author selection from registered users during article creation.
-- **Rate Limiting**:
-  - Middleware to limit the number of requests per user to prevent abuse.
-- **Email Functionality**:
-  - Send emails (plain text and with file attachments) to users.
-  - Uses SMTP server for secure email delivery.
+
+  **User Management**:
+
+- Create, Read, Update, and Delete (CRUD) operations with filtering, sorting, and pagination.
+- Role-based access control (Admin/User).
+- User profile with image upload.
+
+**Authentication and Authorization**:
+- Secure user login with JWT tokens.
+- Email-based verification using verification codes.
+
+**Article Management**:
+- Full CRUD operations for articles.
+- Author attribution.
+
+**WebSocket Support Chat**:
+- Real-time chat for users and administrators.
+- Separate chat windows for users and admins.
+- Persistent chat history stored in PostgreSQL.
+
+**Payment Processing**:
+- Integrated payment microservice.
+- Secure payment with simulated card processing.
+- Payment receipts emailed to users.
+
+**Email Services**:
+- Email verification upon registration.
+- Send emails (plain text and with file attachments) to users.
+- Uses SMTP server for secure email delivery.
+
+**Rate Limiting**:
+- Limits requests to prevent abuse.
+
+**Logging**:
+- Structured logging using Logrus.
 
 ### Frontend Features
 - **Dynamic User Management**:
@@ -28,14 +51,30 @@ This is a feature-rich personal blog project built with Go (Golang) and PostgreS
 - **Email Sending Interface**:
   - Form to send emails with attachments to specific recipients.
 
+  **User Management**:
+- Register/Login with email verification.
+- Profile management with image upload.
+
+  **Admin Panel**:
+- Manage users and articles.
+- View active support chats and respond.
+
+**Article Management**:
+- Create and view articles with author details.
+
+**Support Cha**t:
+- Real-time WebSocket chat for users and admins.
+
+**Payment Page**:
+- Secure donation form integrated with the payment microservice.
+
 ## Prerequisites
 
 - **Go (Golang)** installed (v1.19 or later recommended).
-- **PostgreSQL** installed and running.
-- A modern web browser for frontend usage.
-- **SMTP Configuration**:
-  - Valid credentials for an SMTP server (e.g., mail.ru, Gmail).
-  - App password or proper SMTP authentication setup.
+- **PostgreSQL** (configured for bloguser database on port 5433).
+- **ChromeDriver** (for Selenium tests).
+- **Environment Variables**: 
+- SMTP server credentials and JWT secret.
 
 ## Setup Instructions
 
@@ -45,70 +84,92 @@ This is a feature-rich personal blog project built with Go (Golang) and PostgreS
    cd YOUR_REPOSITORY_NAME
    ```
 
-2. **Run Database Migrations**
+2. **Create .env file**
+   ```bash
+   JWT_SECRET=your_jwt_secret
+  SMTP_SERVER=smtp.mail.ru
+  SMTP_PORT=587
+  EMAIL_SENDER=your-email@mail.ru
+  EMAIL_PASSWORD=your-email-password
+   ```
+
+3. **Run Database Migrations**
    Ensure PostgreSQL is running and execute:
    ```bash
-   go run main.go
+   go run .
    ```
    This will automatically migrate the database schema for users and articles.
 
-3. **Start the Server**
-   Run the following command to start the Go server:
-   ```bash
-   go run main.go
-   ```
-   The server will be available at `http://localhost:8080`.
+4. **Start Servers**
+   Main Server:
+  ```
+   - go run .
+  ```
+  Server available at: http://localhost:8080
 
-4. **Access the Frontend**
-   Open a web browser and navigate to:
-   - Home: `http://localhost:8080`
-   - Articles: `http://localhost:8080/articles.html`
-   - Create Article: `http://localhost:8080/createArticle.html`
+  Payment Microservice:
+  ```
+  go run payment_microservice.go
+  ```
+  Service available at: http://localhost:8081
 
-## How to Use
 
-### Sending Emails
-1. Navigate to the "Send Email" section on the home page.
-2. Fill in the recipient's email, subject, message, and attach files if needed.
-3. Click "Send Email" to deliver the message.
+## Tesing
+  1. **Unit Tests (unit_test.go)**:
+  ```
+  go test ./...
+  ```
+  2. **E2E Tests (e2e_test.go)**:
+  ```
+  go test -v e2e_test.go
+  ```
 
-### Managing Users
-- **Create User**: Use the form on the homepage to add a new user.
-- **Search User**: Enter a user ID to search for a specific user.
-- **Update/Delete User**: Use the "Edit" or "Delete" buttons in the user table.
+## Code structure
+1. backend
+- main.go: Core server logic and routes.
+- crud.go: CRUD operations.
+- additional.go: User profile and Payment functions.
+- websocket.go: WebSocket handlers for support chats.
+- email.go: Email functionality.
+- unit_test.go: Unit tests for core functions.
+- e2e_test.go: Selenium-based login tests.
+- admin.html, supportChat.html: Admin and support chat interfaces.
+2. frontend
+- index.html: Admin panel with all functionality.
+- createArticle.html: Article creation page.
+- articles.html: All list of articles created by users.
+- admin.html, supportChat.html: Admin and support chat interfaces.
+- payment.html: Payment page with inputs to enter card data.
+- profile.html: Profile page of users with information and ability to modify user data.
+- verify.html: Email verification in registration process.
+- style.css: main styling of website.
+- nav.js: navigation menu dynamic buttons.
+3. folders
+- static: all frontend files.
+- receipts: receipts that are sent when user donate.
+- uploads: profile pictures.
+- payment-microservice: payment microservice essentials.
 
-### Managing Articles
-- **Create Article**: Navigate to `createArticle.html` to write and submit a new article.
-- **View Articles**: Access all articles on `articles.html`.
 
-## Development and Contribution
+###  Contribution Guide
 
-### Code Structure
-- **Backend**:
-  - RESTful API implemented in Go.
-  - PostgreSQL integration for user and article storage.
-  - SMTP email functionality using `gomail`.
-- **Frontend**:
-  - Simple HTML and JavaScript for user interaction.
-  - Fetch API for communicating with the backend.
-
-### Adding New Features
 1. Fork the repository.
 2. Create a feature branch:
    ```bash
-   git checkout -b feature/new-feature
+   git checkout -b feature/your-feature
    ```
-3. Implement your changes and commit them:
+3. Commit changes:
    ```bash
-   git commit -m "Add new feature"
+   git commit -m "Add feature"
    ```
 4. Push the branch and open a pull request:
    ```bash
-   git push origin feature/new-feature
+   git push origin feature/your-feature
    ```
+5. Open a pull request
 
 ## Contact
-For any questions or issues, please contact the repository owner at `your-email@mail.ru`.
+For any questions or issues, please contact the repository owner at `sayanzhma@gmail.com`.
 
 ---
 
