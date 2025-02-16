@@ -36,12 +36,13 @@
 
     <main>
         <h2>Chat with Support</h2>
+        <button id="start-chat-button" onclick="startChat()">Start Chat</button>
         <div id="chat-window">
             <p id="status">Connecting to support...</p>
         </div>
 
-        <input type="text" id="messageInput" placeholder="Type a message" style="width: 80%;" />
-        <button onclick="sendMessage()">Send</button>
+        <input type="text" id="messageInput" placeholder="Type a message" style="width: 80%; display: none;" />
+        <button onclick="sendMessage()" style="display: none;">Send</button>
     </main>
     <script src="nav.js"></script>
 
@@ -55,54 +56,66 @@
         let socket;
         let chatId;
 
-        async function initChat() {
-    try {
-        // Получаем chatId
-        const response = await fetch("http://localhost:8080/create-chat", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${token}` }
-        });
+        function startChat() {
+            // Hide the "Start Chat" button
+            document.getElementById("start-chat-button").style.display = "none";
 
-        if (!response.ok) {
-            const error = await response.text();
-            alert(`Error: ${error}`);
-            return;
+            // Show the chat window and input fields
+            document.getElementById("chat-window").style.display = "block";
+            document.getElementById("messageInput").style.display = "inline-block";
+            document.querySelector("button[onclick='sendMessage()']").style.display = "inline-block";
+
+            // Initialize the chat
+            initChat();
         }
 
-        const chat = await response.json();
-        chatId = chat.id;
+        async function initChat() {
+            try {
+                // Получаем chatId
+                const response = await fetch("http://localhost:8080/create-chat", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
 
-        // Подключаем WebSocket
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const wsUrl = `ws://localhost:8080/ws?chat_id=${chatId}&role=user&token=${token}`;
-        console.log(`Connecting to WebSocket as User: ${wsUrl}`);
-        socket = new WebSocket(wsUrl);
-        socket.onopen = () => {
-            console.log("✅ WebSocket connected as User");
-            document.getElementById("status").innerText = "Connected to support.";
-        };
+                if (!response.ok) {
+                    const error = await response.text();
+                    alert(`Error: ${error}`);
+                    return;
+                }
 
-        socket.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            displayMessage(message.sender, message.content, message.time);
-        };
+                const chat = await response.json();
+                chatId = chat.id;
 
-        socket.onerror = (error) => {
-            console.error("❌ WebSocket error:", error);
-            alert("WebSocket connection failed.");
-        };
+                // Подключаем WebSocket
+                const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+                const wsUrl = `ws://localhost:8080/ws?chat_id=${chatId}&role=user&token=${token}`;
+                console.log(`Connecting to WebSocket as User: ${wsUrl}`);
+                socket = new WebSocket(wsUrl);
+                socket.onopen = () => {
+                    console.log("✅ WebSocket connected as User");
+                    document.getElementById("status").innerText = "Connected to support.";
+                };
 
-        socket.onclose = () => {
-            console.warn("⚠️ WebSocket closed");
-            document.getElementById("status").innerText = "Disconnected from support.";
-        };
+                socket.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    displayMessage(message.sender, message.content, message.time);
+                };
 
-    } catch (err) {
-        console.error("❌ Error initializing chat:", err);
-        alert("Failed to initialize chat.");
-    }
-}
-        
+                socket.onerror = (error) => {
+                    console.error("❌ WebSocket error:", error);
+                    alert("WebSocket connection failed.");
+                };
+
+                socket.onclose = () => {
+                    console.warn("⚠️ WebSocket closed");
+                    document.getElementById("status").innerText = "Disconnected from support.";
+                };
+
+            } catch (err) {
+                console.error("❌ Error initializing chat:", err);
+                alert("Failed to initialize chat.");
+            }
+        }
 
         function sendMessage() {
             const input = document.getElementById("messageInput");
@@ -132,39 +145,33 @@
         }
 
         // 🚀 Проверка роли перед загрузкой страницы
-function checkUserAccess() {
-    const token = localStorage.getItem("token");
-    if (!token) {
-        alert("Unauthorized access. Please log in.");
-        window.location.href = "/register.html";
-        return;
-    }
+        function checkUserAccess() {
+            const token = localStorage.getItem("token");
+            if (!token) {
+                alert("Unauthorized access. Please log in.");
+                window.location.href = "/register.html";
+                return;
+            }
 
-    // ✅ Расшифровываем JWT (простая версия)
-    const claims = JSON.parse(atob(token.split('.')[1]));
-    const userRole = claims.role;
+            // ✅ Расшифровываем JWT (простая версия)
+            const claims = JSON.parse(atob(token.split('.')[1]));
+            const userRole = claims.role;
 
-    // ✅ Проверяем, является ли пользователь обычным пользователем
-    if (userRole !== "user") {
-        alert("Access denied. Users only.");
-        window.location.href = "/admin.html";
-        return;
-    }
-}
+            // ✅ Проверяем, является ли пользователь обычным пользователем
+            if (userRole !== "user") {
+                alert("Access denied. Users only.");
+                window.location.href = "/admin.html";
+                return;
+            }
+        }
 
-// 📌 Вызываем проверку при загрузке
-checkUserAccess();
-
+        // 📌 Вызываем проверку при загрузке
+        checkUserAccess();
 
         function logout() {
             localStorage.removeItem("token");
             window.location.href = "/register.html";
         }
-
-        window.addEventListener('DOMContentLoaded', initChat);
-
-
-
     </script>
 </body>
 </html>
