@@ -6,6 +6,10 @@
     <title>Support Chat</title>
     <link rel="stylesheet" href="style.css">
     <style>
+
+        h1{
+            color: white;
+        }
         #chat-window {
             height: 300px;
             overflow-y: scroll;
@@ -17,13 +21,15 @@
 </head>
 <body>
     <header>
-        <h1>Support Chat</h1>
-        <nav>
-            <a href="/articles.html">Articles</a>
-            <a href="/profile.html">Profile</a>
-            <a href="/supports.html">Support</a>
-            <button onclick="logout()">Logout</button>
-        </nav>
+        <h1>Self Blog</h1>
+        <nav class="nav-menu">
+            <a class="header-nav" href="/articles.html">View Articles</a>
+            <a class="header-nav" href="/register.html" id="auth-link">Login / Register</a>
+            <a class="header-nav" href="/createArticle.html" id="create-article-link" style="display: none;">Create Article</a>
+            <a class="header-nav" href="/index.html" id="admin-panel-link" style="display: none;">Admin Panel</a>
+            <a id="profile-link" class="header-nav" href="/profile.html" style="display: none;">Profile</a>
+            <button id="logout-button" style="display: none;">Logout</button>
+        </nav>  
     </header>
 
     <main>
@@ -35,6 +41,7 @@
         <input type="text" id="messageInput" placeholder="Type a message" style="width: 80%;" />
         <button onclick="sendMessage()">Send</button>
     </main>
+    <script src="nav.js"></script>
 
     <script>
         const token = localStorage.getItem("token");
@@ -122,12 +129,40 @@ socket.onmessage = (event) => {
             chatWindow.scrollTop = chatWindow.scrollHeight;
         }
 
+        // 🚀 Проверка роли перед загрузкой страницы
+function checkUserAccess() {
+    const token = localStorage.getItem("token");
+    if (!token) {
+        alert("Unauthorized access. Please log in.");
+        window.location.href = "/register.html";
+        return;
+    }
+
+    // ✅ Расшифровываем JWT (простая версия)
+    const claims = JSON.parse(atob(token.split('.')[1]));
+    const userRole = claims.role;
+
+    // ✅ Проверяем, является ли пользователь обычным пользователем
+    if (userRole !== "user") {
+        alert("Access denied. Users only.");
+        window.location.href = "/admin.html";
+        return;
+    }
+}
+
+// 📌 Вызываем проверку при загрузке
+checkUserAccess();
+
+
         function logout() {
             localStorage.removeItem("token");
             window.location.href = "/register.html";
         }
 
         window.addEventListener('DOMContentLoaded', initChat);
+
+
+
     </script>
 </body>
 </html>
