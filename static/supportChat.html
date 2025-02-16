@@ -27,6 +27,8 @@
             <a class="header-nav" href="/register.html" id="auth-link">Login / Register</a>
             <a class="header-nav" href="/createArticle.html" id="create-article-link" style="display: none;">Create Article</a>
             <a class="header-nav" href="/index.html" id="admin-panel-link" style="display: none;">Admin Panel</a>
+            <a id="support-chat" class="header-nav" href="/supportChat.html" style="display: none;">Support chat</a>
+            <a id="admin-support-chat" class="header-nav" href="/admin.html" style="display: none;">Admin Support chat</a>
             <a id="profile-link" class="header-nav" href="/profile.html" style="display: none;">Profile</a>
             <button id="logout-button" style="display: none;">Logout</button>
         </nav>  
@@ -54,52 +56,52 @@
         let chatId;
 
         async function initChat() {
-            try {
-                // Получаем chatId
-                const response = await fetch("http://localhost:8080/create-chat", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${token}` }
-                });
+    try {
+        // Получаем chatId
+        const response = await fetch("http://localhost:8080/create-chat", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
 
-                if (!response.ok) {
-                    const error = await response.text();
-                    alert(`Error: ${error}`);
-                    return;
-                }
-
-                const chat = await response.json();
-                chatId = chat.id;
-
-                // Подключаем WebSocket
-                const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-                const wsUrl = `ws://localhost:8080/ws?chat_id=${chatId}&role=user`;
-console.log(`Connecting to WebSocket as User: ${wsUrl}`);
-socket = new WebSocket(wsUrl);
-socket.onopen = () => {
-    console.log("✅ WebSocket connected as User");
-    document.getElementById("status").innerText = "Connected to support.";
-};
-
-socket.onmessage = (event) => {
-    const message = JSON.parse(event.data);
-    displayMessage(message.sender, message.content, message.time);
-};
-
-                socket.onerror = (error) => {
-                    console.error("❌ WebSocket error:", error);
-                    alert("WebSocket connection failed.");
-                };
-
-                socket.onclose = () => {
-                    console.warn("⚠️ WebSocket closed");
-                    document.getElementById("status").innerText = "Disconnected from support.";
-                };
-
-            } catch (err) {
-                console.error("❌ Error initializing chat:", err);
-                alert("Failed to initialize chat.");
-            }
+        if (!response.ok) {
+            const error = await response.text();
+            alert(`Error: ${error}`);
+            return;
         }
+
+        const chat = await response.json();
+        chatId = chat.id;
+
+        // Подключаем WebSocket
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const wsUrl = `ws://localhost:8080/ws?chat_id=${chatId}&role=user&token=${token}`;
+        console.log(`Connecting to WebSocket as User: ${wsUrl}`);
+        socket = new WebSocket(wsUrl);
+        socket.onopen = () => {
+            console.log("✅ WebSocket connected as User");
+            document.getElementById("status").innerText = "Connected to support.";
+        };
+
+        socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            displayMessage(message.sender, message.content, message.time);
+        };
+
+        socket.onerror = (error) => {
+            console.error("❌ WebSocket error:", error);
+            alert("WebSocket connection failed.");
+        };
+
+        socket.onclose = () => {
+            console.warn("⚠️ WebSocket closed");
+            document.getElementById("status").innerText = "Disconnected from support.";
+        };
+
+    } catch (err) {
+        console.error("❌ Error initializing chat:", err);
+        alert("Failed to initialize chat.");
+    }
+}
         
 
         function sendMessage() {

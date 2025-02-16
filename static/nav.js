@@ -5,8 +5,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const createArticleLink = document.getElementById("create-article-link");
     const adminPanelLink = document.getElementById("admin-panel-link");
     const profileLink = document.getElementById("profile-link");
-    const userSupport = document.getElementById("support-user");
-    const adminSupport = document.getElementById("admin-support-user");
+    const userSupport = document.getElementById("support-chat");
+    const adminSupport = document.getElementById("admin-support-chat");
+
 
 
     function parseJwt(token) {
@@ -24,10 +25,12 @@ document.addEventListener("DOMContentLoaded", function () {
         if (authLink) authLink.style.display = "none";
         if (logoutButton) logoutButton.style.display = "inline-block";
         if (profileLink) profileLink.style.display = "inline-block";
+        if (userSupport) userSupport.style.display = "inline-block";
 
         if (userData.role === "admin") {
             if (adminPanelLink) adminPanelLink.style.display = "inline-block";
             if (createArticleLink) createArticleLink.style.display = "inline-block";
+            if (adminSupport) adminSupport.style.display = "inline-block";
         } else {
             if (createArticleLink) createArticleLink.style.display = "inline-block";
             if (adminPanelLink) adminPanelLink.style.display = "none";

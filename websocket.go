@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/websocket"
 )
 
@@ -48,6 +50,18 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		if err := conn.ReadJSON(&msg); err != nil {
 			log.Println("❌ WebSocket read error:", err)
 			break
+		}
+
+		// Extract user_id from the JWT token
+		tokenString := r.URL.Query().Get("token")
+		if tokenString != "" {
+			claims := &Claims{}
+			token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+				return jwtSecret, nil
+			})
+			if err == nil && token.Valid {
+				msg.UserID = claims.UserID
+			}
 		}
 
 		msg.ChatID = chatID
@@ -106,7 +120,7 @@ func handleMessages() {
 func saveMessageToDB(msg ChatMessage) {
 	newMsg := Message{
 		ChatID:    msg.ChatID,
-		UserID:    0, // Заменить на получение userID из токена при реализации аутентификации
+		UserID:    msg.UserID, // Use the UserID from the message
 		Sender:    msg.Sender,
 		Content:   msg.Content,
 		Timestamp: time.Now(),
@@ -176,10 +190,29 @@ func getActiveChatsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(activeChats)
 }
 
-// 🆕 Создание нового чата для пользователя
 func createChatHandler(w http.ResponseWriter, r *http.Request) {
-	userID := 1 // Подставьте реальный userID после аутентификации
+	// Extract user_id from the JWT token
+	tokenString := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	tokenString = strings.TrimSpace(tokenString)
 
+	if tokenString == "" {
+		http.Error(w, "Unauthorized: No token provided", http.StatusUnauthorized)
+		return
+	}
+
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	})
+
+	if err != nil || !token.Valid {
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	userID := claims.UserID // Get the user_id from the token
+
+	// Check if the user already has an active chat
 	var existingChat Chat
 	if err := db.Where("user_id = ? AND status = ?", userID, "active").First(&existingChat).Error; err == nil {
 		log.Printf("⚠️ Active chat already exists for user %d", userID)
@@ -187,8 +220,9 @@ func createChatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create a new chat for the user
 	newChat := Chat{
-		UserID:    uint(userID), // Приводим int к uint
+		UserID:    userID, // Use the user_id from the token
 		Status:    "active",
 		CreatedAt: time.Now(),
 	}
